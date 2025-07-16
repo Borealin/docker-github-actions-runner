@@ -108,6 +108,27 @@
       "packages": [
         "yq"
       ]
+    },
+    {
+      "category": "java",
+      "source": "apt",
+      "packages": [
+        "openjdk-17-jdk"
+      ]
+    },
+    {
+      "category": "android-sdk",
+      "source": "script",
+      "packages": [
+        "android-sdk"
+      ]
+    },
+    {
+      "category": "go",
+      "source": "script",
+      "packages": [
+        "go"
+      ]
     }
   ]
 }

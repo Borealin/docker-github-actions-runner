@@ -1,5 +1,5 @@
-FROM ubuntu:focal
-LABEL maintainer="myoung34@my.apsu.edu"
+FROM ubuntu:noble
+LABEL maintainer="me@borealin.cn"
 
 ARG DUMB_INIT_VERSION="1.2.2"
 # TODO: remove git PPA and skopeo customizations for focal when focal hits EOL
@@ -12,4 +12,6 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 
 COPY --chmod=700 build/ /tmp/build/
-RUN /tmp/build/install_base.sh
+RUN --mount=type=secret,id=github_token \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token 2>/dev/null || echo "") \
+    /tmp/build/install_base.sh

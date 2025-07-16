@@ -33,6 +33,8 @@ package:
         installed: true
     yq:
         installed: false
+    openjdk-17-jdk:
+        installed: true
     # Ubuntu Focal is the only one currently that doesnt have an official upstream skopeo/buildah/podman
     {{ if not (eq .Vars.oscodename "focal") }}
     skopeo:
@@ -73,6 +75,30 @@ file:
     filetype: file
     contents:
       - '/^en_US.UTF-8 UTF-8/'
+  /opt/android-sdk:
+    exists: true
+    filetype: directory
+    owner: root
+    group: root
+  /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager:
+    exists: true
+    filetype: file
+    mode: "0755"
+  /opt/android-sdk/platform-tools:
+    exists: true
+    filetype: directory
+  /opt/android-sdk/build-tools:
+    exists: true
+    filetype: directory
+  /opt/android-sdk/ndk:
+    exists: true
+    filetype: directory
+  /usr/local/go:
+    exists: true
+    filetype: symlink
+  /go:
+    exists: true
+    filetype: directory
 
 user:
     runner:

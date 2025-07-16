@@ -2,7 +2,7 @@
 # shellcheck shell=bash
 
 export RUNNER_ALLOW_RUNASROOT=1
-export PATH=${PATH}:/actions-runner
+# PATH will be updated in setup_custom_actions_runner_path function
 
 # Un-export these, so that they must be passed explicitly to the environment of
 # any command that needs them.  This may help prevent leaks.
@@ -25,8 +25,15 @@ deregister_runner() {
     _TOKEN=$(ACCESS_TOKEN="${ACCESS_TOKEN}" bash /token.sh)
     RUNNER_TOKEN=$(echo "${_TOKEN}" | jq -r .token)
   fi
+  
+  # Change to the correct actions-runner directory
+  cd "$(get_actions_runner_path)"
   ./config.sh remove --token "${RUNNER_TOKEN}"
-  [[ -f "/actions-runner/.runner" ]] && rm -f /actions-runner/.runner
+  [[ -f "$(get_actions_runner_path)/.runner" ]] && rm -f "$(get_actions_runner_path)/.runner"
+  
+  # Cleanup custom actions-runner path if configured
+  cleanup_custom_actions_runner_path
+  
   exit
 }
 
@@ -61,6 +68,7 @@ _RUN_AS_ROOT=${RUN_AS_ROOT:="true"}
 _START_DOCKER_SERVICE=${START_DOCKER_SERVICE:="false"}
 _UNSET_CONFIG_VARS=${UNSET_CONFIG_VARS:="false"}
 _CONFIGURED_ACTIONS_RUNNER_FILES_DIR=${CONFIGURED_ACTIONS_RUNNER_FILES_DIR:-""}
+_CUSTOM_ACTIONS_RUNNER_PATH=${CUSTOM_ACTIONS_RUNNER_PATH:-""}
 
 # ensure backwards compatibility
 if [[ -z ${RUNNER_SCOPE} ]]; then
@@ -100,6 +108,50 @@ case ${RUNNER_SCOPE} in
     fi
     ;;
 esac
+
+get_actions_runner_path() {
+  if [[ -n "${_CUSTOM_ACTIONS_RUNNER_PATH}" ]]; then
+    echo "${_CUSTOM_ACTIONS_RUNNER_PATH}"
+  else
+    echo "/actions-runner"
+  fi
+}
+
+setup_custom_actions_runner_path() {
+  # If CUSTOM_ACTIONS_RUNNER_PATH is set, prepare the custom actions-runner path
+  if [[ -n "${_CUSTOM_ACTIONS_RUNNER_PATH}" ]]; then
+    echo "Setting up custom actions-runner path: ${_CUSTOM_ACTIONS_RUNNER_PATH}"
+    
+    # Create the custom actions-runner directory if it doesn't exist
+    mkdir -p "${_CUSTOM_ACTIONS_RUNNER_PATH}"
+    
+    # Sync from /actions-runner to custom actions-runner path
+    echo "Syncing from /actions-runner to custom actions-runner path"
+    rsync -a --delete /actions-runner/ "${_CUSTOM_ACTIONS_RUNNER_PATH}/"
+    
+    # Update PATH to use the custom actions-runner path
+    export PATH="${PATH}:${_CUSTOM_ACTIONS_RUNNER_PATH}"
+    
+    # Change to the custom actions-runner directory
+    cd "${_CUSTOM_ACTIONS_RUNNER_PATH}"
+    
+    echo "Actions-runner custom actions-runner path setup completed"
+  else
+    # Use the default /actions-runner path and add it to PATH
+    export PATH="${PATH}:/actions-runner"
+    cd /actions-runner
+  fi
+}
+
+cleanup_custom_actions_runner_path() {
+  # If CUSTOM_ACTIONS_RUNNER_PATH is set, sync back on exit
+  if [[ -n "${_CUSTOM_ACTIONS_RUNNER_PATH}" ]]; then
+    echo "Syncing from custom actions-runner path back to /actions-runner"
+    rsync -a --delete "${_CUSTOM_ACTIONS_RUNNER_PATH}/" /actions-runner/
+    echo "Custom actions-runner path cleanup completed"
+  fi
+}
+
 
 configure_runner() {
   ARGS=()
@@ -176,12 +228,16 @@ unset_config_vars() {
   unset GITHUB_HOST
   unset DISABLE_AUTOMATIC_DEREGISTRATION
   unset CONFIGURED_ACTIONS_RUNNER_FILES_DIR
+  unset CUSTOM_ACTIONS_RUNNER_PATH
   unset EPHEMERAL
   unset DISABLE_AUTO_UPDATE
   unset START_DOCKER_SERVICE
   unset NO_DEFAULT_LABELS
   unset UNSET_CONFIG_VARS
 }
+
+# Setup custom actions-runner path if configured
+setup_custom_actions_runner_path
 
 # Opt into runner reusage because a value was given
 if [[ -n "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}" ]]; then
@@ -190,10 +246,10 @@ if [[ -n "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}" ]]; then
   # directory exists, copy the data
   if [[ -d "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}" ]]; then
     echo "Copying previous data"
-    cp -p -r "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}/." "/actions-runner"
+    cp -p -r "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}/." "$(get_actions_runner_path)"
   fi
 
-  if [ -f "/actions-runner/.runner" ]; then
+  if [ -f "$(get_actions_runner_path)/.runner" ]; then
     echo "The runner has already been configured"
   else
 
@@ -204,7 +260,7 @@ if [[ -n "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}" ]]; then
 else
   echo "Runner reusage is disabled"
   if [[ ${_DEBUG_ONLY} == "false" ]]; then
-    [[ -f "/actions-runner/.runner" ]] && rm -f /actions-runner/.runner
+    [[ -f "$(get_actions_runner_path)/.runner" ]] && rm -f "$(get_actions_runner_path)/.runner"
     configure_runner
   fi
 fi
@@ -216,7 +272,8 @@ if [[ -n "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}" ]]; then
     exit 1
   fi
   # Quoting (even with double-quotes) the regexp brokes the copying
-  cp -p -r "/actions-runner/_diag" "/actions-runner/svc.sh" /actions-runner/.[^.]* "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}"
+  RUNNER_PATH="$(get_actions_runner_path)"
+  cp -p -r "${RUNNER_PATH}/_diag" "${RUNNER_PATH}/svc.sh" "${RUNNER_PATH}"/.[^.]* "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}"
 fi
 
 
@@ -277,7 +334,7 @@ if [[ ${_RUN_AS_ROOT} == "true" ]]; then
 else
   if [[ $(id -u) -eq 0 ]]; then
     [[ -n "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}" ]] && chown -R runner "${_CONFIGURED_ACTIONS_RUNNER_FILES_DIR}"
-    chown -R runner "${_RUNNER_WORKDIR}" /actions-runner
+    chown -R runner "${_RUNNER_WORKDIR}" "$(get_actions_runner_path)"
     # The toolcache is not recursively chowned to avoid recursing over prepulated tooling in derived docker images
     chown runner /opt/hostedtoolcache/
     if [[ ${_DEBUG_ONLY} == "true" ]] || [[ ${_DEBUG_OUTPUT} == "true" ]] ; then

@@ -26,7 +26,7 @@ jobs:
         draft: false
         prerelease: false
 
-  ubuntu_latest_tag:
+  latest_tag:
     runs-on: ubuntu-latest
     needs: create-release
     steps:
@@ -72,12 +72,12 @@ jobs:
               --cache-to type=gha,mode=max \
               .
 
-  ubuntu_tag:
+  tag:
     runs-on: ubuntu-latest
     needs: create-release
     strategy:
       matrix:
-        release: [jammy, focal, noble]
+        release: [ubuntu-noble]
       fail-fast: false
     steps:
       - name: Copy Repo Files
@@ -93,7 +93,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
       - name: Copy Dockerfile
-        run: cp Dockerfile Dockerfile.ubuntu-${{ matrix.release }}; sed -i.bak "s/FROM.*/FROM ${ORG}\/github-runner-base:ubuntu-${{ matrix.release }}/" Dockerfile.ubuntu-${{ matrix.release }}
+        run: cp Dockerfile Dockerfile.${{ matrix.release }}; sed -i.bak "s/FROM.*/FROM ${ORG}\/github-runner-base:${{ matrix.release }}/" Dockerfile.${{ matrix.release }}
       - name: Login to DockerHub
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
@@ -112,59 +112,10 @@ jobs:
           max_attempts: 3
           command: |
             docker buildx build \
-              --file Dockerfile.ubuntu-${{ matrix.release }} \
+              --file Dockerfile.${{ matrix.release }} \
               --platform linux/amd64,linux/arm64 \
-              --tag ${{ env.ORG }}/github-runner:${{ env.TAG }}-ubuntu-${{ matrix.release }} \
-              --tag ghcr.io/${{ github.repository }}:${{ env.TAG }}-ubuntu-${{ matrix.release }} \
-              --push \
-              --pull \
-              --cache-from type=gha \
-              --cache-to type=gha,mode=max \
-              .
-  debian_tag:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        release: [bookworm, sid]
-      fail-fast: false
-    needs: create-release
-    steps:
-      - name: Copy Repo Files
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: get version
-        run: echo 'TAG='${GITHUB_REF#refs/tags/} >> $GITHUB_ENV
-      - name: Get GitHub organization or user
-        run: echo 'ORG='$(echo $(dirname ${GITHUB_REPOSITORY}) | awk '{print tolower($0)}') >> $GITHUB_ENV
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
-        with:
-          image: tonistiigi/binfmt:qemu-v7.0.0
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-      - name: Copy Dockerfile
-        run: cp Dockerfile Dockerfile.debian-${{ matrix.release }}; sed -i.bak "s/FROM.*/FROM ${ORG}\/github-runner-base:debian-${{ matrix.release }}/" Dockerfile.debian-${{ matrix.release }}
-      - name: Login to DockerHub
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          username: ${{ secrets.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_TOKEN }}
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Retry build and push
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
-        with:
-          timeout_minutes: 60
-          max_attempts: 3
-          command: |
-            docker buildx build \
-              --file Dockerfile.debian-${{ matrix.release }} \
-              --platform linux/amd64,linux/arm64 \
-              --tag ${{ env.ORG }}/github-runner:${{ env.TAG }}-debian-${{ matrix.release }} \
-              --tag ghcr.io/${{ github.repository }}:${{ env.TAG }}-debian-${{ matrix.release }} \
+              --tag ${{ env.ORG }}/github-runner:${{ env.TAG }}-${{ matrix.release }} \
+              --tag ghcr.io/${{ github.repository }}:${{ env.TAG }}-${{ matrix.release }} \
               --push \
               --pull \
               --cache-from type=gha \

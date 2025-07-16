@@ -12,11 +12,11 @@ on:
     - cron:  '0 22 * * *'
 
 jobs:
-  ubuntu_base_tests:
+  base_tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        release: [jammy, focal, noble]
+        release: [ubuntu-noble]
         platform: [amd64, arm64]
       fail-fast: false
     steps:
@@ -30,8 +30,12 @@ jobs:
           image: tonistiigi/binfmt:qemu-v7.0.0
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - name: Get OS and release
+        run: |
+          echo "OS=$(echo ${{ matrix.release }} | cut -d'-' -f1)" >> $GITHUB_ENV
+          echo "RELEASE=$(echo ${{ matrix.release }} | cut -d'-' -f2)" >> $GITHUB_ENV 
       - name: Copy Dockerfile
-        run: cp Dockerfile.base Dockerfile.base.ubuntu-${{ matrix.release }}; sed -i.bak 's/FROM.*/FROM ubuntu:${{ matrix.release }}/' Dockerfile.base.ubuntu-${{ matrix.release }}
+        run: cp Dockerfile.base Dockerfile.base.${{ matrix.release }}; sed -i.bak 's/FROM.*/FROM ${{ env.OS }}:${{ env.RELEASE }}/' Dockerfile.base.${{ matrix.release }}
       - name: Install Goss and dgoss
         run: |
           curl -fsSL https://goss.rocks/install | sh
@@ -41,7 +45,7 @@ jobs:
         run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: set testable image environment variable
         id: testvars
-        run: echo "GH_RUNNER_IMAGE=ubuntu-${{ matrix.release }}-${{ env.GIT_SHA }}-${{ matrix.platform }}" >> $GITHUB_ENV
+        run: echo "GH_RUNNER_IMAGE=${{ matrix.release }}-${{ env.GIT_SHA }}-${{ matrix.platform }}" >> $GITHUB_ENV
       - name: Login to DockerHub
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
@@ -54,96 +58,34 @@ jobs:
           max_attempts: 3
           command: |
             docker buildx build \
-              --file Dockerfile \
+              --file Dockerfile.base.${{ matrix.release }} \
               --platform linux/${{ matrix.platform }} \
               --tag ${{ env.GH_RUNNER_IMAGE }} \
               --load \
               --pull \
               --cache-from type=gha \
               --cache-to type=gha,mode=max \
+              --secret id=github_token,env=GITHUB_TOKEN \
               .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run goss tests
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 60
           max_attempts: 3
           command: |
-            echo "os: ubuntu" >goss_vars_${GH_RUNNER_IMAGE}.yaml
-            echo "oscodename: ${{ matrix.release }}" >>goss_vars_${GH_RUNNER_IMAGE}.yaml
+            echo "os: ${{ env.OS }}" >goss_vars_${GH_RUNNER_IMAGE}.yaml
+            echo "oscodename: ${{ env.RELEASE }}" >>goss_vars_${GH_RUNNER_IMAGE}.yaml
             echo "arch: ${{ matrix.platform }}" >>goss_vars_${GH_RUNNER_IMAGE}.yaml
             GOSS_VARS=goss_vars_${GH_RUNNER_IMAGE}.yaml GOSS_FILE=goss_base.yaml GOSS_SLEEP=1 dgoss run --entrypoint /usr/bin/sleep -e RUNNER_NAME=test -e DEBUG_ONLY=true ${GH_RUNNER_IMAGE} 10
             if [ $? -ne 0 ]; then
               exit 1
             fi
 
-  debian_base_tests:
+  base_latest_deploy:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        release: [bookworm, sid]
-        platform: [amd64, arm64]
-      fail-fast: false
-    steps:
-      - name: Copy Repo Files
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Get GitHub organization or user
-        run: echo 'ORG='$(echo $(dirname ${GITHUB_REPOSITORY}) | awk '{print tolower($0)}') >> $GITHUB_ENV
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
-        with:
-          image: tonistiigi/binfmt:qemu-v7.0.0
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-      - name: Copy Dockerfile
-        run: cp Dockerfile.base Dockerfile.base.debian-${{ matrix.release }}; sed -i.bak 's/FROM.*/FROM debian:${{ matrix.release }}/' Dockerfile.base.debian-${{ matrix.release }}
-      - name: Install Goss and dgoss
-        run: |
-          curl -fsSL https://goss.rocks/install | sh
-          export PATH=$PATH:/usr/local/bin
-      - name: Get current Git SHA
-        id: vars
-        run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - name: set testable image environment variable
-        id: testvars
-        run: echo "GH_RUNNER_IMAGE=debian-${{ matrix.release }}-${{ env.GIT_SHA }}-${{ matrix.platform }}" >> $GITHUB_ENV
-      - name: Login to DockerHub
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          username: ${{ secrets.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_TOKEN }}
-      - name: Retry build
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
-        with:
-          timeout_minutes: 60
-          max_attempts: 3
-          command: |
-            docker buildx build \
-              --file Dockerfile.base.debian-${{ matrix.release }} \
-              --platform linux/${{ matrix.platform }} \
-              --tag ${{ env.GH_RUNNER_IMAGE }} \
-              --load \
-              --pull \
-              --cache-from type=gha \
-              --cache-to type=gha,mode=max \
-              .
-      - name: Run goss tests
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
-        with:
-          timeout_minutes: 60
-          max_attempts: 3
-          command: |
-            echo "os: debian" >goss_vars_${GH_RUNNER_IMAGE}.yaml
-            echo "oscodename: ${{ matrix.release }}" >>goss_vars_${GH_RUNNER_IMAGE}.yaml
-            echo "arch: ${{ matrix.platform }}" >>goss_vars_${GH_RUNNER_IMAGE}.yaml
-            GOSS_VARS=goss_vars_${GH_RUNNER_IMAGE}.yaml GOSS_FILE=goss_base.yaml GOSS_SLEEP=1 dgoss run --entrypoint /usr/bin/sleep -e RUNNER_NAME=test -e DEBUG_ONLY=true ${GH_RUNNER_IMAGE} 10
-            if [ $? -ne 0 ]; then
-              exit 1
-            fi
-
-
-  ubuntu_base_latest_deploy:
-    runs-on: ubuntu-latest
-    needs: ubuntu_base_tests
+    needs: base_tests
     steps:
       - name: Copy Repo Files
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -174,13 +116,16 @@ jobs:
               --pull \
               --cache-from type=gha \
               --cache-to type=gha,mode=max \
+              --secret id=github_token,env=GITHUB_TOKEN \
               .
-  ubuntu_base_deploy:
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  base_deploy:
     runs-on: ubuntu-latest
-    needs: ubuntu_base_tests
+    needs: base_tests
     strategy:
       matrix:
-        release: [jammy, focal, noble]
+        release: [ubuntu-noble]
       fail-fast: false
     steps:
       - name: Copy Repo Files
@@ -193,8 +138,12 @@ jobs:
           image: tonistiigi/binfmt:qemu-v7.0.0
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - name: Get OS and release
+        run: |
+          echo "OS=$(echo ${{ matrix.release }} | cut -d'-' -f1)" >> $GITHUB_ENV
+          echo "RELEASE=$(echo ${{ matrix.release }} | cut -d'-' -f2)" >> $GITHUB_ENV 
       - name: Copy Dockerfile
-        run: cp Dockerfile.base Dockerfile.base.ubuntu-${{ matrix.release }}; sed -i.bak 's/FROM.*/FROM ubuntu:${{ matrix.release }}/' Dockerfile.base.ubuntu-${{ matrix.release }}
+        run: cp Dockerfile.base Dockerfile.base.${{ matrix.release }}; sed -i.bak 's/FROM.*/FROM ${{ env.OS }}:${{ env.RELEASE }}/' Dockerfile.base.${{ matrix.release }}
       - name: Login to DockerHub
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
@@ -207,51 +156,14 @@ jobs:
           max_attempts: 3
           command: |
             docker buildx build \
-              --file Dockerfile.base.ubuntu-${{ matrix.release }} \
+              --file Dockerfile.base.${{ matrix.release }} \
               --platform linux/amd64,linux/arm64 \
-              --tag ${{ env.ORG }}/github-runner-base:ubuntu-${{ matrix.release }} \
+              --tag ${{ env.ORG }}/github-runner-base:${{ matrix.release }} \
               --push \
               --pull \
               --cache-from type=gha \
               --cache-to type=gha,mode=max \
+              --secret id=github_token,env=GITHUB_TOKEN \
               .
-  debian_base_deploy:
-    runs-on: ubuntu-latest
-    needs: debian_base_tests
-    strategy:
-      matrix:
-        release: [bookworm, sid]
-      fail-fast: false
-    steps:
-      - name: Copy Repo Files
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Get GitHub organization or user
-        run: echo 'ORG='$(echo $(dirname ${GITHUB_REPOSITORY}) | awk '{print tolower($0)}') >> $GITHUB_ENV
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
-        with:
-          image: tonistiigi/binfmt:qemu-v7.0.0
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-      - name: Copy Dockerfile
-        run: cp Dockerfile.base Dockerfile.base.debian-${{ matrix.release }}; sed -i.bak 's/FROM.*/FROM debian:${{ matrix.release }}/' Dockerfile.base.debian-${{ matrix.release }}
-      - name: Login to DockerHub
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          username: ${{ secrets.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_TOKEN }}
-      - name: Retry build and push
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
-        with:
-          timeout_minutes: 60
-          max_attempts: 3
-          command: |
-            docker buildx build \
-              --file Dockerfile.base.debian-${{ matrix.release }} \
-              --platform linux/amd64,linux/arm64 \
-              --tag ${{ env.ORG }}/github-runner-base:debian-${{ matrix.release }} \
-              --push \
-              --pull \
-              --cache-from type=gha \
-              --cache-to type=gha,mode=max \
-              .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
