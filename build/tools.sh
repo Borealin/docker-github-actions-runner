@@ -142,12 +142,7 @@ function install_android-sdk() {
   mv "${ANDROID_HOME}/cmdline-tools/cmdline-tools" "${ANDROID_HOME}/cmdline-tools/latest"
   rm /tmp/cmdline-tools.zip
   
-  # Set environment variables
-  echo "export ANDROID_HOME=${ANDROID_HOME}" >> /etc/environment
-  echo "export ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" >> /etc/environment
-  echo "export PATH=\$PATH:\$ANDROID_HOME/cmdline-tools/latest/bin:\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/tools:\$ANDROID_HOME/tools/bin" >> /etc/environment
-  
-  # Source environment for current session
+  # Set for current build session
   export ANDROID_HOME="${ANDROID_HOME}"
   export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT}"
   export PATH="${PATH}:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/tools:${ANDROID_HOME}/tools/bin"
@@ -178,11 +173,6 @@ function install_android-sdk() {
     echo "Installing NDK ${ndk_version}..."
     sdkmanager "ndk;${ndk_version}" || true
   done
-  
-  # Set default NDK version
-  local DEFAULT_NDK="27.2.12479018"
-  echo "export ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${DEFAULT_NDK}" >> /etc/environment
-  echo "export ANDROID_NDK=${ANDROID_HOME}/ndk/${DEFAULT_NDK}" >> /etc/environment
   
   # Set permissions
   chown -R root:root "${ANDROID_HOME}"
@@ -222,10 +212,7 @@ function install_go() {
   tar -C "${GO_DIR}" --strip-components=1 -xzf "/tmp/go1.23.10.tar.gz"
   rm "/tmp/go1.23.10.tar.gz"
   
-  # Set environment variables
-  echo "export GOROOT=${GO_ROOT}" >> /etc/environment
-  echo "export GOPATH=/go" >> /etc/environment
-  echo "export PATH=\$PATH:\$GOROOT/bin:\$GOPATH/bin" >> /etc/environment
+  # Environment variables are set in Dockerfile
   
   # Create GOPATH directory
   mkdir -p /go/{bin,pkg,src}

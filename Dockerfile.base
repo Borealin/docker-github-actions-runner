@@ -15,3 +15,14 @@ COPY --chmod=700 build/ /tmp/build/
 RUN --mount=type=secret,id=github_token \
     GITHUB_TOKEN=$(cat /run/secrets/github_token 2>/dev/null || echo "") \
     /tmp/build/install_base.sh
+
+# Set commonly used environment variables directly
+ENV ANDROID_HOME=/opt/android-sdk \
+    GOROOT=/usr/local/go \
+    GOPATH=/go
+
+ENV ANDROID_SDK_ROOT=${ANDROID_HOME} \
+    ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/27.2.12479018 \
+    ANDROID_NDK=${ANDROID_HOME}/ndk/27.2.12479018
+
+ENV PATH=${PATH}:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/tools:${ANDROID_HOME}/tools/bin:${GOROOT}/bin:${GOPATH}/bin
