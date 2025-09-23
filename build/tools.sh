@@ -126,7 +126,7 @@ function install_powershell() {
 }
 
 function install_android-sdk() {
-  local ANDROID_SDK_VERSION="11076708"
+  local ANDROID_SDK_VERSION="13114758"
   local ANDROID_HOME="/opt/android-sdk"
   local ANDROID_SDK_ROOT="${ANDROID_HOME}"
   local DPKG_ARCH
@@ -151,7 +151,7 @@ function install_android-sdk() {
   yes | sdkmanager --licenses || true
   
   # Install multiple build-tools versions (matching GitHub Actions)
-  local BUILD_TOOLS=("36.0.0" "35.0.0" "34.0.0" "33.0.0" "32.0.0")
+  local BUILD_TOOLS=("36.0.0" "35.0.0")
   for build_tool in "${BUILD_TOOLS[@]}"; do
     echo "Installing build-tools ${build_tool}..."
     sdkmanager "build-tools;${build_tool}" || true
@@ -161,14 +161,14 @@ function install_android-sdk() {
   sdkmanager "platform-tools"
   
   # Install Android platforms
-  local PLATFORMS=("34" "33" "32" "31" "30")
+  local PLATFORMS=("36" "35")
   for platform in "${PLATFORMS[@]}"; do
     echo "Installing android-${platform}..."
     sdkmanager "platforms;android-${platform}" || true
   done
   
   # Install NDK versions (1 latest non-LTS, 2 latest LTS)
-  local NDK_VERSIONS=("28.2.13676358" "27.2.12479018" "26.3.11579264")
+  local NDK_VERSIONS=("27.3.13750724" "27.0.12077973")
   for ndk_version in "${NDK_VERSIONS[@]}"; do
     echo "Installing NDK ${ndk_version}..."
     sdkmanager "ndk;${ndk_version}" || true
