@@ -95,7 +95,7 @@ file:
     filetype: directory
   /usr/local/go:
     exists: true
-    filetype: symlink
+    filetype: directory
   /go:
     exists: true
     filetype: directory
