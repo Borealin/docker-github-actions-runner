@@ -49,12 +49,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_TOKEN }}
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Retry build and push
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
@@ -65,7 +59,6 @@ jobs:
               --file Dockerfile \
               --platform linux/amd64,linux/arm64 \
               --tag ${{ env.ORG }}/github-runner:${{ env.TAG }} \
-              --tag ghcr.io/${{ github.repository }}:${{ env.TAG }} \
               --push \
               --pull \
               --cache-from type=gha \
@@ -99,12 +92,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_TOKEN }}
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Retry build and push
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
@@ -115,7 +102,6 @@ jobs:
               --file Dockerfile.${{ matrix.release }} \
               --platform linux/amd64,linux/arm64 \
               --tag ${{ env.ORG }}/github-runner:${{ env.TAG }}-${{ matrix.release }} \
-              --tag ghcr.io/${{ github.repository }}:${{ env.TAG }}-${{ matrix.release }} \
               --push \
               --pull \
               --cache-from type=gha \
